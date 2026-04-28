@@ -19,6 +19,11 @@ Industrial TwinCAT 3 PLC/HMI project for controlling **3 irrigation gate valves*
   - command source (HMI or MQTT),
   - fault code,
   - system readiness.
+- HMI improvements in this revision:
+  - setpoint inputs clamped to 0..100 in UI,
+  - source column (HMI/MQTT) shown per valve,
+  - MQTT enable checkbox and manual publish button,
+  - corrected homing bindings for valves 2 and 3.
 - MQTT:
   - cyclic status publish,
   - command subscribe,
