@@ -4,38 +4,31 @@
     <Declaration><![CDATA[(*
   ST_MqttConfig
   =============
-  MQTT broker connection and topic configuration.
-  Populated from GVL_Parameters defaults; operator can override via HMI.
+  Central MQTT runtime configuration structure.
 
-  IMPORTANT: Changing any field at runtime requires pressing the
-  "Apply & Reconnect" button on the HMI (triggers bApplyConfig).
+  Project policy (this project):
+  - Broker and topic settings are maintained in PLC code constants (GVL_Config).
+  - HMI only enables/disables MQTT operation.
+  - No broker parameter editing from HMI.
 *)
 TYPE ST_MqttConfig :
 STRUCT
-  (* ── Broker Connection ──────────────────────────────── *)
-  sBrokerAddress    : STRING(255)	:= 'imsiot.aws.thinger.io'	 ;    (* IP address or hostname             *)
-  nPort             : UINT	:= 1883;           (* Default 1883 (plain) / 8883 (TLS)  *)
-  sClientId         : STRING(64) := 'Beckhoff';     (* Unique client identifier           *)
-  sUsername         : STRING(64) := 'ims_iot' ;     (* Leave empty if no auth             *)
-  sPassword         : STRING(64) := '123456789';     (* Leave empty if no auth             *)
-  sDeviceName   	: STRING := 'Beckhoff'; 
-  bUseTls           : BOOL;           (* TRUE = TLS/SSL connection          *)
+  (* ── Broker connection parameters ────────────────────────── *)
+  sBrokerAddress  : STRING(255);   (* IP/hostname of broker                        *)
+  nPort           : UINT;          (* 1883 = plain MQTT, 8883 = TLS (if enabled)   *)
+  sClientId       : STRING(64);    (* Must be unique per broker                    *)
+  sUsername       : STRING(64);    (* Optional                                      *)
+  sPassword       : STRING(64);    (* Optional                                      *)
+  bUseTls         : BOOL;          (* TRUE = secure transport (if broker supports)  *)
 
-  (* ── Topic Configuration ────────────────────────────── *)
-  sTopicPrefix      : STRING(64);     (* e.g. 'irrigation/site1'            *)
-  sMainTopic   		: STRING := 'motor';
-  (* Publish topic  : <prefix>/status                                       *)
-  SubscribeTopic    : STRING := 'command';
-  (* Subscribe V1   : <prefix>/valve1/setpoint                              *)
-  (* Subscribe V2   : <prefix>/valve2/setpoint                              *)
-  (* Subscribe V3   : <prefix>/valve3/setpoint                              *)
+  (* ── Topic parameters ────────────────────────────────────── *)
+  sTopicPrefix    : STRING(64);    (* Logical namespace, e.g. 'irrigation/site1'   *)
+  sMainTopic      : STRING(128);   (* Status publish topic                          *)
+  SubscribeTopic  : STRING(128);   (* Command subscribe topic                       *)
 
-  (* ── Timing ─────────────────────────────────────────── *)
-  tPublishInterval  : TIME := T#5M;           (* Periodic publish interval          *)
-  tReconnectDelay   : TIME := T#2M;           (* Delay between reconnect attempts   *)
-
-  (* ── Runtime Control ────────────────────────────────── *)
-  bApplyConfig      : BOOL;           (* Rising edge: reconnect with new cfg*)
+  (* ── Runtime timings ─────────────────────────────────────── *)
+  tPublishInterval : TIME;         (* Periodic status publish interval              *)
+  tReconnectDelay  : TIME;         (* Delay between reconnect attempts              *)
 END_STRUCT
 END_TYPE
 ]]></Declaration>
