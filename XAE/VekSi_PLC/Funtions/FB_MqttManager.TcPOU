@@ -112,13 +112,7 @@ VAR
 	fbMessage      : FB_IotMqttMessage;
 
     (* ── Connection state machine ─────────────────────── *)
-    eState : (
-        DISABLED,
-        CONNECTING,
-        CONNECTED,
-        DISCONNECTING,
-        WAIT_RECONNECT
-    );
+    eState : E_MqttManagerState := E_MqttManagerState.DISABLED;
 
     (* ── Edge detection ───────────────────────────────── *)
     rtApplyConfig : R_TRIG;

@@ -18,21 +18,20 @@ VAR_GLOBAL CONSTANT
     CSV_FILENAME_PREFIX            : STRING := 'IrrigationLog_';
 
     // ── MQTT defaults (single source of truth) ───────────────
-    // These are copied into ST_MqttConfig in MAIN on startup.
-    // HMI only controls enable/disable, not broker parameter editing.
-    MQTT_DEFAULT_BROKER_IP         : STRING := '192.168.1.100';
-    MQTT_DEFAULT_PORT              : UINT   := 1883;
-    MQTT_DEFAULT_CLIENT_ID         : STRING := 'BeckhoffIrrigationPLC';
-    MQTT_DEFAULT_USERNAME          : STRING := '';
-    MQTT_DEFAULT_PASSWORD          : STRING := '';
-    MQTT_DEFAULT_USE_TLS           : BOOL   := FALSE;
-
-    MQTT_DEFAULT_TOPIC_PREFIX      : STRING := 'irrigation';
-    MQTT_STATUS_TOPIC              : STRING := 'irrigation/status';
-    MQTT_COMMAND_TOPIC             : STRING := 'irrigation/command';
-
-    MQTT_PUBLISH_INTERVAL          : TIME   := T#5M;
-    MQTT_RECONNECT_DELAY           : TIME   := T#30S;
+    // All MQTT configuration is centralized in this one constant structure.
+    MQTT_CONFIG : ST_MqttConfig := (
+        sBrokerAddress   := '192.168.1.100',
+        nPort            := 1883,
+        sClientId        := 'BeckhoffIrrigationPLC',
+        sUsername        := '',
+        sPassword        := '',
+        bUseTls          := FALSE,
+        sTopicPrefix     := 'irrigation',
+        sMainTopic       := 'irrigation/status',
+        SubscribeTopic   := 'irrigation/command',
+        tPublishInterval := T#5M,
+        tReconnectDelay  := T#30S
+    );
 
     // ── Task cycle time ───────────────────────────────────────
     TASK_CYCLE_MS                  : UINT := 10;         // Must match TwinCAT task setting

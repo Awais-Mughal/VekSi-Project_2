@@ -34,6 +34,8 @@ Industrial TwinCAT 3 PLC/HMI project for controlling **3 irrigation gate valves*
   - water level + temperature values.
 
 ## Repository Layout
+- Configuration policy: all tunable constants and MQTT defaults are centralized in `GVL_Config.TcGVL` (single config file).
+- State policy: controller state enums are defined under `XAE/VekSi_PLC/State_Var/`.
 - `XAE/` – TwinCAT solution, PLC project, boot/config artifacts.
 - `XAE/VekSi_PLC/Funtions/` – MAIN + reusable function blocks.
 - `XAE/VekSi_PLC/State_Var/` – DUTs/enums.

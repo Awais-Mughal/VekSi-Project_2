@@ -36,6 +36,9 @@
     <Compile Include="State_Var\E_CSVLogState.TcDUT">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="State_Var\E_MqttManagerState.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="State_Var\E_ValveSource.TcDUT">
       <SubType>Code</SubType>
     </Compile>

@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <DUT Name="E_MqttManagerState" Id="{2a4d130a-b3ab-4d3a-8f1b-8f3f57e0a71a}">
+    <Declaration><![CDATA[{attribute 'strict'}
+{attribute 'to_string'}
+TYPE E_MqttManagerState :
+(
+    DISABLED        := 0,
+    CONNECTING      := 1,
+    CONNECTED       := 2,
+    DISCONNECTING   := 3,
+    WAIT_RECONNECT  := 4
+);
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>
