@@ -321,9 +321,11 @@ IF fbMessageQueue.nQueuedMessages > 0 THEN
         bSuccess := fbJsonDataType.SetSymbolFromJson(sPayloadRcv, 'ST_MQTT_COMMAND', SIZEOF(stCmdRecv), ADR(stCmdRecv));
 		IF bSuccess THEN
             bNewRemoteCommand := TRUE; // Trigger a flag for other parts of your program
-			rMqttValveSetpoint [1]:= LIMIT (0, stCmdRecv.Valve1,100);
-			rMqttValveSetpoint [3]:= LIMIT (0, stCmdRecv.Valve2 ,100);
-			rMqttValveSetpoint [2]:= LIMIT (0, stCmdRecv.Valve3 ,100);
+			rMqttValveSetpoint[1] := LIMIT(0.0, DINT_TO_REAL(stCmdRecv.Valve1), 100.0);
+			rMqttValveSetpoint[2] := LIMIT(0.0, DINT_TO_REAL(stCmdRecv.Valve2), 100.0);
+			rMqttValveSetpoint[3] := LIMIT(0.0, DINT_TO_REAL(stCmdRecv.Valve3), 100.0);
+			sLastRxTopic := sTopicRcv;
+			sLastRxPayload := sPayloadRcv;
         END_IF
 		
 	END_IF
@@ -361,7 +363,11 @@ END_IF
 IF fbMqttClient.bConnected AND rtSubscribe.Q THEN
 
     IF NOT bSubscribeDone THEN
-		bSubscribeDone := fbMqttClient.Subscribe( sTopic := sSubTopic, eQoS   := TcIotMqttQos.AtMostOnceDelivery);
+		bSubscribeDone := fbMqttClient.Subscribe(sTopic := sSubTopic, eQoS := TcIotMqttQos.AtMostOnceDelivery);
+		IF bSubscribeDone THEN
+			aSubscribedTopic := sSubTopic;
+			nSubscribedCount := 1;
+		END_IF
 	END_IF
 	
 
