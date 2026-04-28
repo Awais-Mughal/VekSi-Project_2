@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <DUT Name="ST_MQTT_Command" Id="{6408835c-1577-4fae-afd9-8d68de3755d2}">
+    <Declaration><![CDATA[{attribute 'TcJsonObject' := ''}
+TYPE ST_MQTT_Command :
+STRUCT
+	Valve1	:	DINT;
+	Valve2	: 	DINT;
+	Valve3 :	DINT;
+
+
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

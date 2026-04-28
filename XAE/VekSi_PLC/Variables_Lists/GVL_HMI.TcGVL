@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <GVL Name="GVL_HMI" Id="{0e0ac9c9-f341-4ef2-89c2-f9614e406c1b}">
+    <Declaration><![CDATA[VAR_GLOBAL
+	    // ── Valve 1 — HMI Interface ──────────────────────────────
+    HMI_Valve1_Setpoint     : REAL;             // HMI input: desired position 0–100%
+    Raw_Valve1_Setpoint     : LREAL; 
+	HMI_Valve1_Reset        : BOOL;             // HMI button: reset fault
+    ACT_Valve1_Position     : REAL;             // PLC output: actual position 0–100%
+	Raw_Valve1_Position     : LREAL;
+    ACT_Valve1_State        : E_ValveState;     // PLC output: current state machine state
+    ACT_Valve1_Source       : E_ValveSource;    // PLC output: last command source (HMI/MQTT)
+    ACT_Valve1_Fault        : BOOL;             // PLC output: fault active flag
+    ACT_Valve1_FaultCode    : UDINT;            // PLC output: fault code for display
+	HMI_Valve1_Stop			: BOOL;
+	HMI_UPDATE				: BOOL;
+	HMI_Valve1_Homing		: BOOL;
+
+	    // ── Valve 2 — HMI Interface ──────────────────────────────
+    HMI_Valve2_Setpoint     : REAL;             // HMI input: desired position 0–100%
+    Raw_Valve2_Setpoint     : LREAL; 
+	HMI_Valve2_Reset        : BOOL;             // HMI button: reset fault
+    ACT_Valve2_Position     : REAL;             // PLC output: actual position 0–100%
+	Raw_Valve2_Position     : LREAL;
+    ACT_Valve2_State        : E_ValveState;     // PLC output: current state machine state
+    ACT_Valve2_Source       : E_ValveSource;    // PLC output: last command source (HMI/MQTT)
+    ACT_Valve2_Fault        : BOOL;             // PLC output: fault active flag
+    ACT_Valve2_FaultCode    : UDINT;            // PLC output: fault code for display
+	HMI_Valve2_Stop			: BOOL;
+	HMI_Valve2_Homing		: BOOL;
+	
+		    // ── Valve 3 — HMI Interface ──────────────────────────────
+    HMI_Valve3_Setpoint     : REAL;             // HMI input: desired position 0–100%
+    Raw_Valve3_Setpoint     : LREAL; 
+	HMI_Valve3_Reset        : BOOL;             // HMI button: reset fault
+    ACT_Valve3_Position     : REAL;             // PLC output: actual position 0–100%
+	Raw_Valve3_Position     : LREAL;
+    ACT_Valve3_State        : E_ValveState;     // PLC output: current state machine state
+    ACT_Valve3_Source       : E_ValveSource;    // PLC output: last command source (HMI/MQTT)
+    ACT_Valve3_Fault        : BOOL;             // PLC output: fault active flag
+    ACT_Valve3_FaultCode    : UDINT;            // PLC output: fault code for display
+	HMI_Valve3_Stop			: BOOL;
+	HMI_Valve3_Homing		: BOOL;
+
+		    // ── CSV Logger Information ────────────────────
+
+
+		    // ── mqtt CONTROL ────────────────────
+	HMI_MQTT_bEnable		: BOOL;
+	HMI_MQTT_mPublish		: BOOL;
+
+    // ── System-wide controls ─────────────────────────────────
+    HMI_ResetAll            : BOOL;             // Reset all valve faults simultaneously
+    ACT_SystemReady         : BOOL;             // All valves homed and no faults
+	
+	// ── CSV Logger ─────────────────────────────────
+	WriteTrigger			: BOOL;
+	
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

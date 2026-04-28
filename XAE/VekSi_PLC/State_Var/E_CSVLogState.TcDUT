@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <DUT Name="E_CSVLogState" Id="{69cfa499-3ca1-426f-bcc6-61625167f823}">
+    <Declaration><![CDATA[
+// States:
+//   CSV_IDLE        : Waiting for next log interval
+//   CSV_PREPARE     : Build timestamp, filename, header/row strings
+//   CSV_OPEN        : Open file in append mode
+//   CSV_WRITE_HDR   : Write header (first row for new day in this PLC session)
+//   CSV_WRITE_ROW   : Write one CSV data row
+//   CSV_CLOSE       : Close file handle
+//   CSV_ERROR       : Latch error until disabled or reset by logic
+// ============================================================
+TYPE E_CSVLogState :
+(
+    CSV_IDLE      := 0,
+    CSV_PREPARE   := 1,
+    CSV_OPEN      := 2,
+    CSV_WRITE_HDR := 3,
+    CSV_WRITE_ROW := 4,
+    CSV_CLOSE     := 5,
+    CSV_ERROR     := 6
+);
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

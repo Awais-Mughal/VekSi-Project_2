@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <GVL Name="GVL_IO" Id="{42834d4b-0f37-4606-b4cd-608131d7b71a}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	
+	AI_L1V11  			: INT	:= -999 ;	// AT %I* // Water Level Sensors
+	AI_L1V20  			: INT	:= -999 ;	// AT %I*
+	AI_L2V21  			: INT	:= -999 ;	// AT %I*
+
+	AI_Tmp_1 			: INT	:= -999;	// AT %I*
+	AI_Tmp_2  			: INT	:= -999;	// AT %I*
+	
+	AI_PosFeedback_1	: INT	:= -999;	// AT %I* //Position feedback from the encoder
+	AI_PosFeedback_2	: INT	:= -999;	// AT %I*
+	AI_PosFeedback_3	: INT	:= -999;	// AT %I*
+	
+
+	bTop_position_1		AT %I*	: BOOL;
+	bBottom_position_1	AT %I*	: BOOL;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

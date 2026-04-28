@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <DUT Name="E_ValveState" Id="{ac4c2719-005c-461d-9600-05b83ccfd3b0}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+{attribute 'strict'}
+{attribute 'to_string'}
+TYPE E_ValveState :
+(
+    INIT    := 0,   // Initializing, powering axis
+    HOMING  := 1,   // Performing homing sequence (MC_Home)
+    IDLE    := 2,   // At position, no active command
+    MOVING  := 3,   // MC_MoveAbsolute active, travelling to setpoint
+	HALT	:= 4,
+    HOLD    := 5,   // At setpoint, holding position
+    FAULT   := 6,   // Error state — MC error, drive fault, or limit breach
+    RESET   := 7    // Clearing fault, preparing to re-home
+);
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

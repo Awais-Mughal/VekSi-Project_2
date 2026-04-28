@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <DUT Name="ST_MqttConfig" Id="{0d23f381-9828-49b6-8416-3eaade8f2f19}">
+    <Declaration><![CDATA[(*
+  ST_MqttConfig
+  =============
+  MQTT broker connection and topic configuration.
+  Populated from GVL_Parameters defaults; operator can override via HMI.
+
+  IMPORTANT: Changing any field at runtime requires pressing the
+  "Apply & Reconnect" button on the HMI (triggers bApplyConfig).
+*)
+TYPE ST_MqttConfig :
+STRUCT
+  (* ── Broker Connection ──────────────────────────────── *)
+  sBrokerAddress    : STRING(255)	:= 'imsiot.aws.thinger.io'	 ;    (* IP address or hostname             *)
+  nPort             : UINT	:= 1883;           (* Default 1883 (plain) / 8883 (TLS)  *)
+  sClientId         : STRING(64) := 'Beckhoff';     (* Unique client identifier           *)
+  sUsername         : STRING(64) := 'ims_iot' ;     (* Leave empty if no auth             *)
+  sPassword         : STRING(64) := '123456789';     (* Leave empty if no auth             *)
+  sDeviceName   	: STRING := 'Beckhoff'; 
+  bUseTls           : BOOL;           (* TRUE = TLS/SSL connection          *)
+
+  (* ── Topic Configuration ────────────────────────────── *)
+  sTopicPrefix      : STRING(64);     (* e.g. 'irrigation/site1'            *)
+  sMainTopic   		: STRING := 'motor';
+  (* Publish topic  : <prefix>/status                                       *)
+  SubscribeTopic    : STRING := 'command';
+  (* Subscribe V1   : <prefix>/valve1/setpoint                              *)
+  (* Subscribe V2   : <prefix>/valve2/setpoint                              *)
+  (* Subscribe V3   : <prefix>/valve3/setpoint                              *)
+
+  (* ── Timing ─────────────────────────────────────────── *)
+  tPublishInterval  : TIME := T#5M;           (* Periodic publish interval          *)
+  tReconnectDelay   : TIME := T#2M;           (* Delay between reconnect attempts   *)
+
+  (* ── Runtime Control ────────────────────────────────── *)
+  bApplyConfig      : BOOL;           (* Rising edge: reconnect with new cfg*)
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

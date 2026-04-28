@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <GVL Name="GVL_Config" Id="{3f9b61cc-9b72-4973-88f0-22ca8b080aec}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL CONSTANT
+	    // ── Valve motion parameters ───────────────────────────────
+    VALVE_FULL_STROKE_MM        : REAL   := 6.096;   // mm — 3600degree *** CALIBRATE to hardware ***
+    VALVE_POSITION_TOLERANCE    : REAL   := 0.5;    // %  — InPosition dead-band
+    VALVE_MOVE_VELOCITY         : LREAL  := 1.5;   // mm/s
+    VALVE_MOVE_ACCELERATION     : LREAL  := 16.9085;   // mm/s²
+    VALVE_MOVE_DECELERATION     : LREAL  := 16.9085;   // mm/s²
+    VALVE_MOVE_JERK             : LREAL  := 53.5391;    // mm/s³ — 0 = trapezoidal profile
+    VALVE_HOMING_VELOCITY       : LREAL  := 1;    // mm/s — reference for NC axis config
+
+    // ── Sensor scaling ────────────────────────────────────────
+
+
+    // ── CSV Logging ───────────────────────────────────────────
+    CSV_LOG_INTERVAL_S          : TIME    := T#15M;
+    CSV_FILE_PATH               : STRING := 'C:\TwinCAT\3.1\Boot\Log\';
+    CSV_FILENAME_PREFIX         : STRING := 'IrrigationLog_';
+
+    // ── MQTT Defaults ─────────────────────────────────────────
+    MQTT_DEFAULT_BROKER_IP      : STRING := '192.168.1.100';
+    MQTT_DEFAULT_PORT           : UINT   := 1883;
+    MQTT_DEFAULT_CLIENT_ID      : STRING := 'BeckhoffIrrigationPLC';
+    MQTT_DEFAULT_USERNAME       : STRING := '';
+    MQTT_DEFAULT_PASSWORD       : STRING := '';
+    MQTT_DEFAULT_TOPIC_PREFIX   : STRING := 'irrigation';
+    MQTT_DEFAULT_PUBLISH_INTERVAL : UINT := 120;    // seconds (5 min)
+
+    // ── Task cycle time ───────────────────────────────────────
+    TASK_CYCLE_MS               : UINT := 10;       // Must match TwinCAT task setting
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

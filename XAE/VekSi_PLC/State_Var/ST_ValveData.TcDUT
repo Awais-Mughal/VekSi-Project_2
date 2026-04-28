@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4026.18">
+  <DUT Name="ST_ValveData" Id="{cbd16f96-e975-4a78-8ab5-965d19f24af6}">
+    <Declaration><![CDATA[
+TYPE ST_ValveData :
+STRUCT
+    // --- Setpoints (written by HMI or MQTT) ---
+    HMI_Setpoint    : REAL;         // Position setpoint from HMI (0.0–100.0 %)
+    MQTT_Setpoint   : REAL;         // Position setpoint from MQTT (0.0–100.0 %)
+    Active_Setpoint : REAL;         // Currently active setpoint (latest of HMI/MQTT)
+
+    // --- Feedback (written by FB_ValveControl) ---
+    Actual_Position : REAL;         // Actual valve position in % (from MC axis)
+    Actual_Pos_Raw  : LREAL;        // Raw axis position in mm or steps (from MC2)
+
+    // --- Command source tracking ---
+    Source          : E_ValveSource;  // Who issued the last command
+    MQTT_Enabled    : BOOL;           // Allow MQTT to override this valve's setpoint
+
+    // --- State machine status ---
+    State           : E_ValveState;  // Current state of FB_ValveControl
+    IsHomed         : BOOL;          // TRUE once homing has been completed
+    InPosition      : BOOL;          // TRUE when actual ≈ setpoint (within tolerance)
+    IsFault         : BOOL;          // TRUE when in FAULT state
+    FaultCode       : UDINT;         // MC or drive error code for diagnostics
+	
+
+	
+    // --- Reset ---
+    Reset_Cmd       : BOOL;          // HMI writes TRUE to request fault reset
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>
