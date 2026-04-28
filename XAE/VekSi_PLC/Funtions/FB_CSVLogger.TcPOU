@@ -101,7 +101,15 @@ END_VAR
 ]]></Declaration>
     <Implementation>
       <ST><![CDATA[(* ============================================================
-   FB_CsvLogger – Cyclic Execution
+   FB_CsvLogger – Cyclic Execution (NOVICE GUIDE)
+   ------------------------------------------------------------
+   This FB avoids blocking the PLC cycle with long file operations.
+   It progresses through small states over multiple cycles:
+   IDLE -> PREPARE -> OPEN -> WRITE_HDR/WRITE_ROW -> CLOSE.
+
+   Why this matters:
+   - Motion control remains responsive.
+   - Logging still happens reliably in background.
    ============================================================ *)
 (* Get current time every cycle *)
 fbGetTime(bEnable := TRUE, dwCycle := 1);
@@ -122,6 +130,7 @@ END_IF
 bForceEdge(CLK := bForceWrite);
 tIntervalTimer(IN := TRUE, PT := tLogInterval);
 
+// Write request if interval elapsed OR manual force button pressed
 bTriggerWrite := tIntervalTimer.Q OR bForceEdge.Q;
 
 IF tIntervalTimer.Q THEN
@@ -172,7 +181,8 @@ CASE eState OF
 	
 //---------------------------------------------------------------------------------------------------------------
 E_CSVLogState.CSV_PREPARE:
-(* Build date string for filename and timestamp string for data row *)
+(* Build file name and row timestamp.
+   Current naming uses prefix + YYYY-MM.csv. *)
     nYear  := fbGetTime.systemTime.wYear;
     nMonth := fbGetTime.systemTime.wMonth;
     sYear  := UINT_TO_STRING(nYear);
@@ -194,7 +204,8 @@ E_CSVLogState.CSV_PREPARE:
 	
 //--------------------------------------------------------------------
 
-(*Checking If file exists *)
+(* Check if file already exists.
+   If not, we write header first so CSV columns are self-describing. *)
     bBusy := TRUE;
     IF bEnumStart THEN
         fbEnum(
@@ -259,7 +270,7 @@ E_CSVLogState.CSV_PREPARE:
 //---------------------------------------------------------------------------------------------------------------
 
   E_CSVLogState.CSV_WRITE_ROW:
-    (* Build CSV data row *)
+    (* Build one CSV row in same column order as header. *)
    
  //	sSource := SEL(stValve[1].eCommandSource = E_CommandSource.MQTT, 'HMI', 'MQTT'); //E_CommandSource.MQTT
  //   IF stValve[1].eCommandSource = E_CommandSource.NONE THEN sSource := 'NONE'; END_IF

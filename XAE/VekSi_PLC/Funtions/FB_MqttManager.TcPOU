@@ -9,6 +9,12 @@ FUNCTION_BLOCK: FB_MqttManager
 PURPOSE
   Central MQTT manager for irrigation system.
 
+  NOVICE SUMMARY
+  - Think of this FB as a communication gateway between PLC and broker.
+  - It handles connect/reconnect and topic subscription lifecycle.
+  - It converts incoming JSON command payload into valve setpoints.
+  - It builds outgoing JSON status payload from PLC runtime values.
+
 HANDLES
   • MQTT connection / reconnection
   • Topic subscription / unsubscription
@@ -147,6 +153,10 @@ END_VAR]]></Declaration>
     <Implementation>
       <ST><![CDATA[(* ============================================================
    EDGE DETECTION
+   ------------------------------------------------------------
+   Convert push-button BOOLs into 1-cycle pulses.
+   Example: if bPublish stays TRUE for multiple cycles,
+   we still trigger exactly one publish action.
    ============================================================ *)
 
 rtApplyConfig(CLK := bApplyConfig);
@@ -179,6 +189,13 @@ bConnectCmd := FALSE;
 
 (* ============================================================
    CONNECTION STATE MACHINE
+   ------------------------------------------------------------
+   State intent:
+   DISABLED       -> MQTT off by operator
+   CONNECTING     -> apply config + request connection
+   CONNECTED      -> normal operation (rx/tx)
+   DISCONNECTING  -> clean stop before disable/reconfigure
+   WAIT_RECONNECT -> back-off timer to avoid fast retry loop
    ============================================================ *)
 
 CASE eState OF
@@ -304,6 +321,7 @@ END_CASE
    EXECUTE MQTT CLIENT
 
    Must be called every PLC cycle.
+   If skipped, MQTT communication and queued message handling stop.
    ============================================================ *)
 
 fbMqttClient.Execute(bConnectCmd);
@@ -411,6 +429,8 @@ END_IF
 
 (* ============================================================
    CYCLIC STATUS JSON PUBLISH
+
+   Timer-driven telemetry publish for dashboards/history.
 
    Builds JSON similar to your CSV row and publishes it.
    Example topic:

@@ -29,13 +29,21 @@ END_VAR
 ]]></Declaration>
     <Implementation>
       <ST><![CDATA[// ============================================================
-// MAIN PROGRAM OVERVIEW
+// MAIN PROGRAM OVERVIEW (NOVICE GUIDE)
 // ------------------------------------------------------------
-// 1) Read HMI setpoints and reset commands
-// 2) Process MQTT commands if enabled from HMI
-// 3) Execute valve FBs
-// 4) Execute CSV logger
-// 5) Update HMI feedback and system health
+// This program is the "orchestrator" of the whole irrigation PLC:
+// - It reads operator requests from HMI.
+// - It reads remote requests from MQTT (if enabled by operator).
+// - It decides which source currently controls each valve.
+// - It calls each valve motion FB once per PLC cycle.
+// - It logs process values to CSV and mirrors status back to HMI.
+//
+// Execution sequence each PLC cycle:
+// 1) Read/limit HMI commands and reset commands
+// 2) Handle source arbitration (HMI vs MQTT)
+// 3) Run valve FBs (motion execution)
+// 4) Run CSV logger
+// 5) Update HMI feedback + overall system health flags
 // ============================================================
 
 // ------------------------------------------------------------
@@ -59,10 +67,12 @@ END_IF
 // ------------------------------------------------------------
 // 2) HMI/MQTT command source handling
 // ------------------------------------------------------------
-// Rule implemented:
-// - HMI setpoint change updates active setpoint with source=HMI.
-// - If new MQTT command is received and MQTT is enabled from HMI,
-//   MQTT becomes active source for that cycle.
+// Arbitration rule for beginners:
+// - By default, first valid source is HMI.
+// - If operator changes HMI setpoint, active source becomes HMI.
+// - If a new valid MQTT command arrives and MQTT is enabled,
+//   active source changes to MQTT for that valve.
+// - Source is stored in GVL_System.Valve[i].Source and shown on HMI.
 FOR iValve := 1 TO 3 DO
     IF GVL_System.Valve[iValve].Source = E_ValveSource.NONE THEN
         GVL_System.Valve[iValve].Source := E_ValveSource.HMI;
@@ -77,6 +87,7 @@ FOR iValve := 1 TO 3 DO
 END_FOR
 
 // Prepare status arrays before MQTT publish
+// (This is done in arrays because FB_MqttManager expects fixed arrays.)
 arrValveSetpoint[1] := GVL_System.Valve[1].Active_Setpoint;
 arrValveSetpoint[2] := GVL_System.Valve[2].Active_Setpoint;
 arrValveSetpoint[3] := GVL_System.Valve[3].Active_Setpoint;
@@ -87,8 +98,9 @@ arrValveSource[1] := TO_STRING(GVL_System.Valve[1].Source);
 arrValveSource[2] := TO_STRING(GVL_System.Valve[2].Source);
 arrValveSource[3] := TO_STRING(GVL_System.Valve[3].Source);
 
-// MQTT enable is operator-controlled from HMI.
-// Broker/topic configuration remains fixed in code constants.
+// MQTT enable is operator-controlled from HMI checkbox.
+// Broker/topic/timing configuration stays fixed in code constants
+// (single source of truth = GVL_Config.MQTT_CONFIG).
 fbMqttManager(
     bEnable              := GVL_HMI.HMI_MQTT_bEnable,
     stConfig             := GVL_Config.MQTT_CONFIG,
@@ -121,6 +133,8 @@ END_IF
 
 // ------------------------------------------------------------
 // 3) Valve motion control calls (one FB per valve axis)
+// Each FB handles homing, move, halt, reset, and fault state machine
+// for its own NC axis. MAIN only forwards commands/parameters.
 // ------------------------------------------------------------
 fbValve1(
     Axis            := Axis_Valve1,
@@ -212,6 +226,8 @@ fbValve3(
 
 // ------------------------------------------------------------
 // 4) CSV logger
+// Logger runs non-blocking state machine and appends one row
+// with valve + sensor data when interval/trigger condition is met.
 // ------------------------------------------------------------
 fbCsvLogger(
     bEnable             := TRUE,
@@ -230,6 +246,7 @@ fbCsvLogger(
 
 // ------------------------------------------------------------
 // 5) Housekeeping and HMI feedback
+// Reset one-shot command bits and copy runtime values to display variables.
 // ------------------------------------------------------------
 GVL_System.Valve[1].Reset_Cmd := FALSE;
 GVL_HMI.HMI_Valve1_Reset      := FALSE;
