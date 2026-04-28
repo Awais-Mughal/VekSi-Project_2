@@ -106,4 +106,5 @@ JSON includes timestamp, each valve setpoint/actual/source, temperature, and wat
 
 ## Documentation Index
 - `docs/system_design.md` – architecture, state machines, HMI flow, recreate steps.
+- `docs/PROJECT_REBUILD_FROM_SCRATCH.md` – clean rebuild baseline and phased rewrite plan.
 
