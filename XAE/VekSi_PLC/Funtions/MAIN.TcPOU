@@ -3,41 +3,55 @@
   <POU Name="MAIN" Id="{a0f99a09-eccb-42d8-b9bd-167b13d45a91}" SpecialFunc="None">
     <Declaration><![CDATA[PROGRAM MAIN
 VAR
-	    fbValve1    : FB_ValveControl;
-		fbValve2    : FB_ValveControl;
-		fbValve3    : FB_ValveControl;
-  
-	  // ── NC Axis references ────────────────────────────────────
-   	 // Link each to NC axis in TwinCAT I/O mapping
-   		 Axis_Valve1 : AXIS_REF;
-		 Axis_Valve2 : AXIS_REF;
-		 Axis_Valve3 : AXIS_REF;
+    // ── Valve function blocks (one instance per physical axis) ───────────────────
+    fbValve1    : FB_ValveControl;
+    fbValve2    : FB_ValveControl;
+    fbValve3    : FB_ValveControl;
 
-		fbCsvLogger		: FB_CsvLogger;
-		
-		fbMqttManager	: FB_MqttManager;
-		
-		stMqttConfig : ST_MqttConfig := (
-			sBrokerAddress := GVL_Config.MQTT_DEFAULT_BROKER_IP,
-			nPort := GVL_Config.MQTT_DEFAULT_PORT,
-			sClientId := GVL_Config.MQTT_DEFAULT_CLIENT_ID,
-			sUsername := GVL_Config.MQTT_DEFAULT_USERNAME,
-			sPassword := GVL_Config.MQTT_DEFAULT_PASSWORD,
-			sTopicPrefix := GVL_Config.MQTT_DEFAULT_TOPIC_PREFIX,
-			sMainTopic := 'irrigation/status',
-			SubscribeTopic := 'irrigation/command',
-			tPublishInterval := T#5M,
-			tReconnectDelay := T#30S
-		);
-		arrPrevHmiSetpoint : ARRAY[1..3] OF REAL := [-1.0, -1.0, -1.0];
-		arrValveSetpoint : ARRAY[1..3] OF REAL;
-		arrValveActual : ARRAY[1..3] OF REAL;
-		arrValveSource : ARRAY[1..3] OF STRING(32);
-		iValve : INT;
+    // ── NC axis references ─────────────────────────────────────────────────────────
+    // These variables must be linked to configured TwinCAT NC axes in I/O mapping.
+    Axis_Valve1 : AXIS_REF;
+    Axis_Valve2 : AXIS_REF;
+    Axis_Valve3 : AXIS_REF;
+
+    // ── Supporting modules ─────────────────────────────────────────────────────────
+    fbCsvLogger   : FB_CsvLogger;
+    fbMqttManager : FB_MqttManager;
+
+    // ── MQTT runtime configuration ─────────────────────────────────────────────────
+    // Initialized from GVL_Config once at startup. Fields may be changed in code
+    // later if dynamic reconfiguration from HMI is added.
+    stMqttConfig : ST_MqttConfig := (
+        sBrokerAddress := GVL_Config.MQTT_DEFAULT_BROKER_IP,
+        nPort := GVL_Config.MQTT_DEFAULT_PORT,
+        sClientId := GVL_Config.MQTT_DEFAULT_CLIENT_ID,
+        sUsername := GVL_Config.MQTT_DEFAULT_USERNAME,
+        sPassword := GVL_Config.MQTT_DEFAULT_PASSWORD,
+        sTopicPrefix := GVL_Config.MQTT_DEFAULT_TOPIC_PREFIX,
+        sMainTopic := 'irrigation/status',
+        SubscribeTopic := 'irrigation/command',
+        tPublishInterval := T#5M,
+        tReconnectDelay := T#30S
+    );
+
+    // ── Command arbitration helpers ────────────────────────────────────────────────
+    // Stores previous HMI setpoints to detect operator changes.
+    arrPrevHmiSetpoint : ARRAY[1..3] OF REAL := [-1.0, -1.0, -1.0];
+
+    // Arrays passed directly to MQTT manager for compact status publishing.
+    arrValveSetpoint : ARRAY[1..3] OF REAL;
+    arrValveActual   : ARRAY[1..3] OF REAL;
+    arrValveSource   : ARRAY[1..3] OF STRING(32);
+
+    // Generic loop index used for repetitive valve operations.
+    iValve : INT;
 END_VAR
 ]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// ── Copy HMI commands and apply latest-source arbitration ──
+      <ST><![CDATA[// =============================================================================
+// SECTION 1 — READ HMI INPUTS AND CLAMP OPERATOR SETPOINTS
+// =============================================================================
+// LIMIT guarantees every valve command remains inside the configured legal range.
 GVL_System.Valve[1].HMI_Setpoint := LIMIT(0.0, GVL_HMI.HMI_Valve1_Setpoint, 100.0);
 GVL_System.Valve[2].HMI_Setpoint := LIMIT(0.0, GVL_HMI.HMI_Valve2_Setpoint, 100.0);
 GVL_System.Valve[3].HMI_Setpoint := LIMIT(0.0, GVL_HMI.HMI_Valve3_Setpoint, 100.0);
@@ -46,75 +60,87 @@ GVL_System.Valve[1].Reset_Cmd := GVL_HMI.HMI_Valve1_Reset;
 GVL_System.Valve[2].Reset_Cmd := GVL_HMI.HMI_Valve2_Reset;
 GVL_System.Valve[3].Reset_Cmd := GVL_HMI.HMI_Valve3_Reset;
 
-FOR iValve := 1 TO 3 DO
-	IF GVL_System.Valve[iValve].Source = E_ValveSource.NONE THEN
-		GVL_System.Valve[iValve].Source := E_ValveSource.HMI;
-		GVL_System.Valve[iValve].Active_Setpoint := GVL_System.Valve[iValve].HMI_Setpoint;
-	END_IF
-	IF ABS(GVL_System.Valve[iValve].HMI_Setpoint - arrPrevHmiSetpoint[iValve]) > 0.001 THEN
-		GVL_System.Valve[iValve].Active_Setpoint := GVL_System.Valve[iValve].HMI_Setpoint;
-		GVL_System.Valve[iValve].Source := E_ValveSource.HMI;
-		arrPrevHmiSetpoint[iValve] := GVL_System.Valve[iValve].HMI_Setpoint;
-	END_IF
-END_FOR
-
 IF GVL_HMI.HMI_ResetAll THEN
-	GVL_System.Valve[1].Reset_Cmd := TRUE;
-	GVL_System.Valve[2].Reset_Cmd := TRUE;
-	GVL_System.Valve[3].Reset_Cmd := TRUE;
+    // Global reset request from HMI: pulse every valve reset command in this cycle.
+    FOR iValve := 1 TO 3 DO
+        GVL_System.Valve[iValve].Reset_Cmd := TRUE;
+    END_FOR
     GVL_HMI.HMI_ResetAll := FALSE;
 END_IF
 
 
-arrValveSetpoint[1] := GVL_System.Valve[1].Active_Setpoint;
-arrValveSetpoint[2] := GVL_System.Valve[2].Active_Setpoint;
-arrValveSetpoint[3] := GVL_System.Valve[3].Active_Setpoint;
-arrValveActual[1] := GVL_System.Valve[1].Actual_Position;
-arrValveActual[2] := GVL_System.Valve[2].Actual_Position;
-arrValveActual[3] := GVL_System.Valve[3].Actual_Position;
-arrValveSource[1] := TO_STRING(GVL_System.Valve[1].Source);
-arrValveSource[2] := TO_STRING(GVL_System.Valve[2].Source);
-arrValveSource[3] := TO_STRING(GVL_System.Valve[3].Source);
+// =============================================================================
+// SECTION 2 — SETPOINT SOURCE ARBITRATION (HMI vs MQTT)
+// =============================================================================
+FOR iValve := 1 TO 3 DO
+    // Startup fallback: if source is unknown, default to local HMI control.
+    IF GVL_System.Valve[iValve].Source = E_ValveSource.NONE THEN
+        GVL_System.Valve[iValve].Source := E_ValveSource.HMI;
+        GVL_System.Valve[iValve].Active_Setpoint := GVL_System.Valve[iValve].HMI_Setpoint;
+    END_IF
 
+    // When operator changes HMI setpoint, HMI becomes authoritative source.
+    IF ABS(GVL_System.Valve[iValve].HMI_Setpoint - arrPrevHmiSetpoint[iValve]) > 0.001 THEN
+        GVL_System.Valve[iValve].Active_Setpoint := GVL_System.Valve[iValve].HMI_Setpoint;
+        GVL_System.Valve[iValve].Source := E_ValveSource.HMI;
+        arrPrevHmiSetpoint[iValve] := GVL_System.Valve[iValve].HMI_Setpoint;
+    END_IF
+
+    // Build compact telemetry arrays once here (reused by MQTT manager call).
+    arrValveSetpoint[iValve] := GVL_System.Valve[iValve].Active_Setpoint;
+    arrValveActual[iValve] := GVL_System.Valve[iValve].Actual_Position;
+    arrValveSource[iValve] := TO_STRING(GVL_System.Valve[iValve].Source);
+END_FOR
+
+
+// =============================================================================
+// SECTION 3 — MQTT CLIENT HANDLING
+// =============================================================================
 fbMqttManager (
-	bEnable				:= GVL_HMI.HMI_MQTT_bEnable,
-	stConfig			:= stMqttConfig,
-	bApplyConfig		:= FALSE,
-	bPublish			:= GVL_HMI.HMI_MQTT_mPublish,
-	sPubTopic			:= stMqttConfig.sMainTopic,
-	sPubPayload		:= '',
-	bSubscribe		:= GVL_HMI.HMI_MQTT_bEnable,
-	sSubTopic			:= stMqttConfig.SubscribeTopic,
-	bUnsubscribe		:= FALSE,
-	sUnsubTopic		:= '',
-	bEnableStatusPublish := GVL_HMI.HMI_MQTT_bEnable,
-	tStatusPublishTime   := T#5M,
-	sStatusTopic		:= stMqttConfig.sMainTopic,
-	rValveSetpoint		:= arrValveSetpoint,
-	rValveActual		:= arrValveActual,
-	sValveSource		:= arrValveSource,
-	rTemperature_C		:= INT_TO_REAL(GVL_IO.AI_Tmp_1),
-	rWaterLevel_Percent := INT_TO_REAL(GVL_IO.AI_L1V11),
-	sTimestamp			:= DT_TO_STRING(CURRENT_DT())
-	);
+    bEnable               := GVL_HMI.HMI_MQTT_bEnable,
+    stConfig              := stMqttConfig,
+    bApplyConfig          := FALSE,
+    bPublish              := GVL_HMI.HMI_MQTT_mPublish,
+    sPubTopic             := stMqttConfig.sMainTopic,
+    sPubPayload           := '',
+    bSubscribe            := GVL_HMI.HMI_MQTT_bEnable,
+    sSubTopic             := stMqttConfig.SubscribeTopic,
+    bUnsubscribe          := FALSE,
+    sUnsubTopic           := '',
+    bEnableStatusPublish  := GVL_HMI.HMI_MQTT_bEnable,
+    tStatusPublishTime    := T#5M,
+    sStatusTopic          := stMqttConfig.sMainTopic,
+    rValveSetpoint        := arrValveSetpoint,
+    rValveActual          := arrValveActual,
+    sValveSource          := arrValveSource,
+    rTemperature_C        := INT_TO_REAL(GVL_IO.AI_Tmp_1),
+    rWaterLevel_Percent   := INT_TO_REAL(GVL_IO.AI_L1V11),
+    sTimestamp            := DT_TO_STRING(CURRENT_DT())
+);
 
 IF fbMqttManager.bNewRemoteCommand AND GVL_HMI.HMI_MQTT_bEnable THEN
-	FOR iValve := 1 TO 3 DO
-		GVL_System.Valve[iValve].MQTT_Setpoint := fbMqttManager.rMqttValveSetpoint[iValve];
-		GVL_System.Valve[iValve].Active_Setpoint := GVL_System.Valve[iValve].MQTT_Setpoint;
-		GVL_System.Valve[iValve].Source := E_ValveSource.MQTT;
-	END_FOR
+    // Remote command became valid in this cycle. Clamp values for safety before use.
+    FOR iValve := 1 TO 3 DO
+        GVL_System.Valve[iValve].MQTT_Setpoint := LIMIT(0.0, fbMqttManager.rMqttValveSetpoint[iValve], 100.0);
+        GVL_System.Valve[iValve].Active_Setpoint := GVL_System.Valve[iValve].MQTT_Setpoint;
+        GVL_System.Valve[iValve].Source := E_ValveSource.MQTT;
+    END_FOR
 END_IF
 
 
-// ── Valve 1 ────────────────────────────────────────────────
+// =============================================================================
+// SECTION 4 — EXECUTE PER-VALVE CONTROL FBs
+// =============================================================================
+// NOTE: Each valve FB is explicit to keep wiring to dedicated HMI tags readable.
+
+// ── Valve 1 ────────────────────────────────────────────────────────────────────
 fbValve1(
     Axis            := Axis_Valve1,
     HMI_Setpoint    := GVL_System.Valve[1].HMI_Setpoint,
     MQTT_Setpoint   := GVL_System.Valve[1].MQTT_Setpoint,
     MQTT_Enabled    := GVL_HMI.HMI_MQTT_bEnable,
     Enable          := TRUE,
-	eHomingSelection := MC_Direct, //MC_Direct, //0,       // MC_DefaultHoming
+    eHomingSelection := MC_Direct,
     Reset           := GVL_System.Valve[1].Reset_Cmd,
     MoveVelocity    := GVL_Config.VALVE_MOVE_VELOCITY,
     MoveAccel       := GVL_Config.VALVE_MOVE_ACCELERATION,
@@ -123,33 +149,31 @@ fbValve1(
     HomeVelocity    := GVL_Config.VALVE_HOMING_VELOCITY,
     FullStroke_mm   := GVL_Config.VALVE_FULL_STROKE_MM,
     PosTolerance    := GVL_Config.VALVE_POSITION_TOLERANCE,
-	Move_Stop		:= GVL_HMI.HMI_Valve1_Stop,
-	UPDATE			:=  GVL_HMI.HMI_UPDATE,
-	ZeroPosition	:=  GVL_IO.bBottom_position_1,
-	bHoming			:= GVL_HMI.HMI_Valve1_Homing,
-	
-	//-----Outputs---------------------------------------------
-	
-	Actual_Position => GVL_System.Valve[1].Actual_Position,
-	State 			=> GVL_System.Valve[1].State,
-	Source 			=> GVL_System.Valve[1].Source,        
-	IsHomed 		=> GVL_System.Valve[1].IsHomed,       
-	InPosition 		=> GVL_System.Valve[1].InPosition,
-	IsFault 		=> GVL_System.Valve[1].IsFault,
-	FaultCode 		=> GVL_System.Valve[1].FaultCode,
-	
-	rTarget_mm 		=> GVL_HMI.Raw_Valve1_Setpoint,
-	rActual_mm 		=> GVL_HMI.Raw_Valve1_Position
+    Move_Stop       := GVL_HMI.HMI_Valve1_Stop,
+    UPDATE          := GVL_HMI.HMI_UPDATE,
+    ZeroPosition    := GVL_IO.bBottom_position_1,
+    bHoming         := GVL_HMI.HMI_Valve1_Homing,
+
+    Actual_Position => GVL_System.Valve[1].Actual_Position,
+    State           => GVL_System.Valve[1].State,
+    Source          => GVL_System.Valve[1].Source,
+    IsHomed         => GVL_System.Valve[1].IsHomed,
+    InPosition      => GVL_System.Valve[1].InPosition,
+    IsFault         => GVL_System.Valve[1].IsFault,
+    FaultCode       => GVL_System.Valve[1].FaultCode,
+
+    rTarget_mm      => GVL_HMI.Raw_Valve1_Setpoint,
+    rActual_mm      => GVL_HMI.Raw_Valve1_Position
 );
 
-// ── Valve 2 ────────────────────────────────────────────────
+// ── Valve 2 ────────────────────────────────────────────────────────────────────
 fbValve2(
     Axis            := Axis_Valve2,
     HMI_Setpoint    := GVL_System.Valve[2].HMI_Setpoint,
     MQTT_Setpoint   := GVL_System.Valve[2].MQTT_Setpoint,
     MQTT_Enabled    := GVL_HMI.HMI_MQTT_bEnable,
     Enable          := TRUE,
-	eHomingSelection := MC_Direct, //0,       // MC_DefaultHoming
+    eHomingSelection := MC_Direct,
     Reset           := GVL_System.Valve[2].Reset_Cmd,
     MoveVelocity    := GVL_Config.VALVE_MOVE_VELOCITY,
     MoveAccel       := GVL_Config.VALVE_MOVE_ACCELERATION,
@@ -158,32 +182,30 @@ fbValve2(
     HomeVelocity    := GVL_Config.VALVE_HOMING_VELOCITY,
     FullStroke_mm   := GVL_Config.VALVE_FULL_STROKE_MM,
     PosTolerance    := GVL_Config.VALVE_POSITION_TOLERANCE,
-	Move_Stop		:= GVL_HMI.HMI_Valve2_Stop,
-	UPDATE			:=  GVL_HMI.HMI_UPDATE,
-	bHoming			:= GVL_HMI.HMI_Valve2_Homing,
-	
-	//-----Outputs---------------------------------------------
-	
-	Actual_Position => GVL_System.Valve[2].Actual_Position,
-	State 			=> GVL_System.Valve[2].State,
-	Source 			=> GVL_System.Valve[2].Source,        
-	IsHomed 		=> GVL_System.Valve[2].IsHomed,       
-	InPosition 		=> GVL_System.Valve[2].InPosition,
-	IsFault 		=> GVL_System.Valve[2].IsFault,
-	FaultCode 		=> GVL_System.Valve[2].FaultCode,
-	
-	rTarget_mm 		=> GVL_HMI.Raw_Valve2_Setpoint,
-	rActual_mm 		=> GVL_HMI.Raw_Valve2_Position
+    Move_Stop       := GVL_HMI.HMI_Valve2_Stop,
+    UPDATE          := GVL_HMI.HMI_UPDATE,
+    bHoming         := GVL_HMI.HMI_Valve2_Homing,
+
+    Actual_Position => GVL_System.Valve[2].Actual_Position,
+    State           => GVL_System.Valve[2].State,
+    Source          => GVL_System.Valve[2].Source,
+    IsHomed         => GVL_System.Valve[2].IsHomed,
+    InPosition      => GVL_System.Valve[2].InPosition,
+    IsFault         => GVL_System.Valve[2].IsFault,
+    FaultCode       => GVL_System.Valve[2].FaultCode,
+
+    rTarget_mm      => GVL_HMI.Raw_Valve2_Setpoint,
+    rActual_mm      => GVL_HMI.Raw_Valve2_Position
 );
 
-// ── Valve 3 ────────────────────────────────────────────────
+// ── Valve 3 ────────────────────────────────────────────────────────────────────
 fbValve3(
     Axis            := Axis_Valve3,
     HMI_Setpoint    := GVL_System.Valve[3].HMI_Setpoint,
     MQTT_Setpoint   := GVL_System.Valve[3].MQTT_Setpoint,
     MQTT_Enabled    := GVL_HMI.HMI_MQTT_bEnable,
     Enable          := TRUE,
-	eHomingSelection := MC_Direct, //0,       // MC_DefaultHoming
+    eHomingSelection := MC_Direct,
     Reset           := GVL_System.Valve[3].Reset_Cmd,
     MoveVelocity    := GVL_Config.VALVE_MOVE_VELOCITY,
     MoveAccel       := GVL_Config.VALVE_MOVE_ACCELERATION,
@@ -192,54 +214,55 @@ fbValve3(
     HomeVelocity    := GVL_Config.VALVE_HOMING_VELOCITY,
     FullStroke_mm   := GVL_Config.VALVE_FULL_STROKE_MM,
     PosTolerance    := GVL_Config.VALVE_POSITION_TOLERANCE,
-	Move_Stop		:= GVL_HMI.HMI_Valve3_Stop,
-	UPDATE			:= GVL_HMI.HMI_UPDATE,
-	bHoming			:= GVL_HMI.HMI_Valve3_Homing,
-	
-	//-----Outputs---------------------------------------------
-	
-	Actual_Position => GVL_System.Valve[3].Actual_Position,
-	State 			=> GVL_System.Valve[3].State,
-	Source 			=> GVL_System.Valve[3].Source,        
-	IsHomed 		=> GVL_System.Valve[3].IsHomed,       
-	InPosition 		=> GVL_System.Valve[3].InPosition,
-	IsFault 		=> GVL_System.Valve[3].IsFault,
-	FaultCode 		=> GVL_System.Valve[3].FaultCode,
-	
-	rTarget_mm 		=> GVL_HMI.Raw_Valve3_Setpoint,
-	rActual_mm 		=> GVL_HMI.Raw_Valve3_Position
-);
+    Move_Stop       := GVL_HMI.HMI_Valve3_Stop,
+    UPDATE          := GVL_HMI.HMI_UPDATE,
+    bHoming         := GVL_HMI.HMI_Valve3_Homing,
 
-// ── CSV Logger ────────────────────────────────────────────────
+    Actual_Position => GVL_System.Valve[3].Actual_Position,
+    State           => GVL_System.Valve[3].State,
+    Source          => GVL_System.Valve[3].Source,
+    IsHomed         => GVL_System.Valve[3].IsHomed,
+    InPosition      => GVL_System.Valve[3].InPosition,
+    IsFault         => GVL_System.Valve[3].IsFault,
+    FaultCode       => GVL_System.Valve[3].FaultCode,
 
-fbCsvLogger (
-	bEnable			:= TRUE,
-	bForceWrite		:= GVL_HMI.WriteTrigger,
-	tLogInterval	:= GVL_Config.CSV_LOG_INTERVAL_S, //future to be added from HMI
-	sBasePath		:= GVL_Config.CSV_FILE_PATH,
-	sPrefix			:= GVL_Config.CSV_FILENAME_PREFIX,
-	
-	stValve        	:= GVL_System.Valve,
-	rWaterLevel_Percent := INT_TO_REAL(GVL_IO.AI_L1V11),
-	rTemperature_C		:= INT_TO_REAL(GVL_IO.AI_Tmp_1),
-
-	dtLastWrite			=> GVL_System.CSV_LastWriteTime,
-	bError				=> GVL_System.CSV_FileError,
-	sCurrentFilename 	=> GVL_System.CSV_CurrentFile,
-	eState 				=> GVL_System.CSV_LoggerState
-	
+    rTarget_mm      => GVL_HMI.Raw_Valve3_Setpoint,
+    rActual_mm      => GVL_HMI.Raw_Valve3_Position
 );
 
 
-// ── Auto-clear reset commands after passing to FBs ─────────
-GVL_System.Valve[1].Reset_Cmd := FALSE;
-GVL_HMI.HMI_Valve1_Reset      := FALSE;
-GVL_System.Valve[2].Reset_Cmd := FALSE;
-GVL_HMI.HMI_Valve2_Reset      := FALSE;
-GVL_System.Valve[3].Reset_Cmd := FALSE;
-GVL_HMI.HMI_Valve3_Reset      := FALSE;
+// =============================================================================
+// SECTION 5 — CSV LOGGER EXECUTION
+// =============================================================================
+fbCsvLogger(
+    bEnable              := TRUE,
+    bForceWrite          := GVL_HMI.WriteTrigger,
+    tLogInterval         := GVL_Config.CSV_LOG_INTERVAL_S,
+    sBasePath            := GVL_Config.CSV_FILE_PATH,
+    sPrefix              := GVL_Config.CSV_FILENAME_PREFIX,
+    stValve              := GVL_System.Valve,
+    rWaterLevel_Percent  := INT_TO_REAL(GVL_IO.AI_L1V11),
+    rTemperature_C       := INT_TO_REAL(GVL_IO.AI_Tmp_1),
 
-// ── Copy feedback to HMI display variables ─────────────────
+    dtLastWrite          => GVL_System.CSV_LastWriteTime,
+    bError               => GVL_System.CSV_FileError,
+    sCurrentFilename     => GVL_System.CSV_CurrentFile,
+    eState               => GVL_System.CSV_LoggerState
+);
+
+
+// =============================================================================
+// SECTION 6 — CLEANUP + HMI MIRRORING
+// =============================================================================
+// Reset commands are pulse-based: clear them after handing to FBs.
+FOR iValve := 1 TO 3 DO
+    GVL_System.Valve[iValve].Reset_Cmd := FALSE;
+END_FOR
+GVL_HMI.HMI_Valve1_Reset := FALSE;
+GVL_HMI.HMI_Valve2_Reset := FALSE;
+GVL_HMI.HMI_Valve3_Reset := FALSE;
+
+// Copy valve runtime status to HMI tags.
 GVL_HMI.ACT_Valve1_Position  := GVL_System.Valve[1].Actual_Position;
 GVL_HMI.ACT_Valve1_State     := GVL_System.Valve[1].State;
 GVL_HMI.ACT_Valve1_Source    := GVL_System.Valve[1].Source;
@@ -258,27 +281,20 @@ GVL_HMI.ACT_Valve3_Source    := GVL_System.Valve[3].Source;
 GVL_HMI.ACT_Valve3_Fault     := GVL_System.Valve[3].IsFault;
 GVL_HMI.ACT_Valve3_FaultCode := GVL_System.Valve[3].FaultCode;
 
-// ── System health ──────────────────────────────────────────
+// System readiness is true only when all valves are homed and fault free.
 GVL_System.AnyFaultActive :=
-    GVL_System.Valve[1].IsFault 	OR		GVL_System.Valve[2].IsFault OR	GVL_System.Valve[3].IsFault;
-	
+    GVL_System.Valve[1].IsFault OR
+    GVL_System.Valve[2].IsFault OR
+    GVL_System.Valve[3].IsFault;
+
 GVL_System.SystemReady :=
-    GVL_System.Valve[1].IsHomed 	AND		GVL_System.Valve[2].IsHomed AND	GVL_System.Valve[3].IsHomed AND	NOT GVL_System.AnyFaultActive;	
-	
-GVL_HMI.ACT_SystemReady := GVL_System.SystemReady;	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	]]></ST>
+    GVL_System.Valve[1].IsHomed AND
+    GVL_System.Valve[2].IsHomed AND
+    GVL_System.Valve[3].IsHomed AND
+    NOT GVL_System.AnyFaultActive;
+
+GVL_HMI.ACT_SystemReady := GVL_System.SystemReady;
+]]></ST>
     </Implementation>
   </POU>
 </TcPlcObject>
