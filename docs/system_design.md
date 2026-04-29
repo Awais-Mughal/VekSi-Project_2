@@ -122,3 +122,26 @@ flowchart TD
 - Fault/ready status made explicit for HMI diagnostics.
 - Modular FB separation to support repurposing.
 
+---
+
+## 7) Maintainability Notes (Current Implementation)
+
+### `MAIN` execution order (single PLC cycle)
+1. Clamp and import HMI commands.
+2. Resolve command source priority (HMI vs MQTT).
+3. Push telemetry arrays into `FB_MqttManager`.
+4. Apply new MQTT command (when valid + enabled).
+5. Execute valve FB instances.
+6. Run `FB_CsvLogger`.
+7. Mirror runtime data to HMI tags + update system health flags.
+
+### `FB_CsvLogger` state sequence
+`CSV_IDLE -> CSV_PREPARE -> CSV_OPEN -> CSV_WRITE_HDR (optional) -> CSV_WRITE_ROW -> CSV_CLOSE`
+
+Error branch: `CSV_ERROR` retries on next trigger.
+
+### Logging behavior
+- File name is built as: `<BasePath><Prefix><YYYY-MM-DD>.csv`.
+- Header is written only for new files detected during `CSV_PREPARE`.
+- Logger can be safely disabled: it drops to `CSV_IDLE` and closes any open handle.
+

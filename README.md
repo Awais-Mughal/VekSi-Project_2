@@ -2,6 +2,8 @@
 
 Industrial TwinCAT 3 PLC/HMI project for controlling **3 irrigation gate valves** with local HMI operation and remote MQTT operation.
 
+This repository now includes heavily commented PLC modules so new team members can follow cycle-by-cycle behavior without TwinCAT expertise.
+
 ## Scope
 - Beckhoff PLC + TwinCAT 3 XAE project.
 - PLC Structured Text (ST) implementation.
@@ -27,6 +29,15 @@ Industrial TwinCAT 3 PLC/HMI project for controlling **3 irrigation gate valves*
   - timestamped rows,
   - setpoint/actual/source per valve,
   - water level + temperature values.
+
+
+## Code Quality Improvements (April 2026)
+- Refactored `MAIN` into clear execution sections (input read, arbitration, MQTT, valve execution, logging, HMI mirror).
+- Reduced repetitive logic by using loops for shared 3-valve tasks (reset-all handling, telemetry arrays, source arbitration).
+- Added defensive clamping for incoming MQTT valve setpoints (`0..100%`) before applying them.
+- Reworked `FB_CSVLogger` for clearer state-machine flow and richer inline comments intended for novice PLC developers.
+- Improved CSV filename generation to **daily files** (`PrefixYYYY-MM-DD.csv`) to match documentation and simplify troubleshooting.
+- Added explicit disabled-mode behavior in logger (no stale writes, clean handle close, deterministic idle state).
 
 ## Repository Layout
 - `XAE/` – TwinCAT solution, PLC project, boot/config artifacts.
